@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Annotated, Union
 import random
+from fastapi.middleware.cors import CORSMiddleware
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -8,38 +9,8 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from settings import SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, CURSOR, CONNECTION
-
-# to get a string like this run:
-# openssl rand -hex 32
-
-
-
-fake_users_db = {
-    "johndoe": {
-        "username": "johndoe",
-        "full_name": "John Doe",
-        "email": "johndoe@example.com",
-        "hashed_password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",
-        "disabled": False,
-    }
-}
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-class TokenData(BaseModel):
-    username: Union[str, None] = None
-
-
-class User(BaseModel):
-    id_user: int
-    username: Union[str, None] = None
-    password: Union[str, None] = None
-    balance: Union[int, None] = None
-
+from pexeso import pexeso_manager
+from models import Token, TokenData, User, GuessPexeso
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -47,6 +18,13 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -145,6 +123,37 @@ async def read_users_me(
     current_user: Annotated[User, Depends(get_current_user)]
 ):
     return current_user
+
+# PEXESO GAME
+
+@app.get("/pexeso/connect/")
+async def connect_pexeso_game(
+    current_user: Annotated[User, Depends(get_current_user)]
+):
+    pexeso_manager.new_game(current_user)
+    return {'detail': 'success'}
+
+@app.get("/pexeso/disconnect/")
+async def disconnect_pexeso_game(
+    current_user: Annotated[User, Depends(get_current_user)]
+):
+    pexeso_manager.disconnect(current_user)
+    return {'detail': 'success'}
+
+@app.get("/pexeso/end_game/")
+async def end_pexeso_game(
+    current_user: Annotated[User, Depends(get_current_user)]
+):
+    pexeso_manager.end_game(current_user)
+    return {'detail': 'success'}
+
+@app.post("/pexeso/guess/")
+async def make_guess_pexeso_game(
+    current_user: Annotated[User, Depends(get_current_user)],
+    guess: GuessPexeso
+):
+    
+    return pexeso_manager.guess(user=current_user, x_pos=guess.x_pos, y_pos=guess.y_pos, bet=guess.bet)
 
 
 # FUNKCE PRO PRISTUP K DATABAZI

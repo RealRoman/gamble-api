@@ -20,28 +20,26 @@ class Pexeso:
         print(self.active_connections)
 
     def guess(self, user: User, x_pos: int, y_pos: int, bet: int):
-        print(bet)
         # pristupuje k nasobici, pokud uhodne spatne zavola new_game
         user_dict = self.active_connections[user.username]
-        user_dict['bet'] += bet
+        user_dict['bet'] = bet
         if (x_pos is user_dict['x_pos'] and y_pos is user_dict['y_pos']):
             balance = user.balance - user_dict['bet']
             self.set_balance(user, balance=balance)
             self.new_game(user)
-            print(self.active_connections)
             return True
         
         else:
-            user_dict['multi'] *= 1.2
-            print(self.active_connections)
+            user_dict['multi'] = round(user_dict['multi']*1.134, 2)
             return False
         
         
     def end_game(self, user: User):
         user_dict = self.active_connections[user.username]
-        balance = user.balance + (user_dict['bet'] * user_dict['multi'])
+        balance = round(user.balance + (user_dict['bet'] * user_dict['multi']), 2)
         self.set_balance(user, balance)
         self.new_game(user)
+        return balance
 
     def disconnect(self, user: User):
         # po odhlaseni uzivatele odstrani uzivatele

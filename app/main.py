@@ -1,16 +1,18 @@
 from datetime import datetime, timedelta
 from typing import Annotated, Union
 import random
+import asyncio
 from fastapi.middleware.cors import CORSMiddleware
-
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.responses import RedirectResponse
+from fastapi import Depends, FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from settings import SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, CURSOR, CONNECTION
 from pexeso import pexeso_manager
-from models import Token, TokenData, User, GuessPexeso
+from models import Token, TokenData, User, GuessPexeso, UserCrash
+from crash import ws_manager
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -81,7 +83,6 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
     return user
 
 
-
 @app.post("/token", response_model=Token)
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()]
@@ -144,8 +145,7 @@ async def disconnect_pexeso_game(
 async def end_pexeso_game(
     current_user: Annotated[User, Depends(get_current_user)]
 ):
-    pexeso_manager.end_game(current_user)
-    return {'detail': 'success'}
+    return {'balance': round(pexeso_manager.end_game(current_user), 2)}
 
 @app.post("/pexeso/guess/")
 async def make_guess_pexeso_game(
@@ -155,6 +155,21 @@ async def make_guess_pexeso_game(
     
     return pexeso_manager.guess(user=current_user, x_pos=guess.x_pos, y_pos=guess.y_pos, bet=guess.bet)
 
+# CRASH GAME
+
+@app.websocket("/ws/crash/{username}")
+async def websocket_endpoint(websocket: WebSocket, username: str):
+    print(username)
+    await websocket.accept()
+    user = UserCrash(**query_user(username), ws=websocket, bet=0, active=False)
+    await ws_manager.connect(user)
+    try:
+        while True:
+            await asyncio.sleep(0.5)
+            res = await websocket.receive_json()
+            await ws_manager.recieve_message(res, username)
+    except WebSocketDisconnect:
+        await ws_manager.disconnect(username)
 
 # FUNKCE PRO PRISTUP K DATABAZI
 

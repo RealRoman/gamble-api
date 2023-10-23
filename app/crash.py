@@ -11,7 +11,7 @@ class WSManager:
     def __init__(self) -> None:
         self.active_connections = {}
         self.game_active = False
-        self.current_number = 0
+        self.current_number = 1
         asyncio.get_event_loop().create_task(self.start_game())
 
     async def connect(self, user: UserCrash):
@@ -63,7 +63,15 @@ class WSManager:
         await self.set_users_active()
         if self.game_active:
             
-            random_number = random.randint(0, 100)
+            scale = 0.1  # Adjust this value to control the distribution
+
+            # Generate a random number following the exponential distribution
+            random_number = random.expovariate(scale)
+
+            # You can then scale and round the number to fit your desired range, like [0, 100]
+            min_value = 0
+            max_value = 100
+            random_number = min(max_value, max(min_value, round(random_number)))
             await self.send_message({'case':'crash_start'})
             await self.crash(random_number)
 
@@ -72,15 +80,15 @@ class WSManager:
         await self.start_game()
 
     async def crash(self, number):
-        self.current_number = 0
+        self.current_number = 1
         while True:
             await self.send_message({'case':'crash', 'number': self.current_number})
             if self.current_number >= number:
                 await self.end_game()
                 break
             
-            self.current_number += 1
-            await asyncio.sleep(0.2)
+            self.current_number *= 1.1
+            await asyncio.sleep(0.1)
 
     async def set_balance(self, id_user: int, balance: int):
         SQL = """
